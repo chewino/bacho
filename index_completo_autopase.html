@@ -1,0 +1,120 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Autopase de Lista - COBAEM</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+    .container { max-width: 500px; margin: auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    .panel { max-width: 1000px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    input, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; }
+    button { background: #28a745; color: white; font-weight: bold; cursor: pointer; }
+    button:hover { background: #218838; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+    th { background: #e9ecef; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Autopase de Lista</h2>
+    <input type="text" id="nombre" placeholder="Nombre completo">
+    <input type="text" id="matricula" placeholder="Matrícula o ID">
+    <input type="text" id="codigoClase" placeholder="Código de clase">
+    <button onclick="registrarAsistencia()">Pasar lista</button>
+    <p id="mensaje" style="color:green;"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Panel del Docente</h2>
+    <input type="text" id="filtroCodigo" placeholder="Filtrar por código de clase" oninput="cargarAsistencias()">
+    <input type="date" id="filtroFecha" oninput="cargarAsistencias()">
+    <button onclick="exportarExcel()">Exportar a Excel</button>
+    <table id="tabla">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Matrícula</th>
+          <th>Clase</th>
+          <th>Fecha</th>
+          <th>Hora</th>
+        </tr>
+      </thead>
+      <tbody id="registros"></tbody>
+    </table>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "TU_API_KEY",
+      authDomain: "TU_AUTH_DOMAIN",
+      projectId: "TU_PROJECT_ID",
+      storageBucket: "TU_BUCKET",
+      messagingSenderId: "TU_MESSAGING_SENDER_ID",
+      appId: "TU_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    function registrarAsistencia() {
+      const nombre = document.getElementById('nombre').value.trim();
+      const matricula = document.getElementById('matricula').value.trim();
+      const codigo = document.getElementById('codigoClase').value.trim();
+      const mensaje = document.getElementById('mensaje');
+      if (!nombre || !matricula || !codigo) {
+        alert("Por favor llena todos los campos.");
+        return;
+      }
+      const ahora = new Date();
+      const fecha = ahora.toLocaleDateString("es-MX");
+      const hora = ahora.toLocaleTimeString("es-MX");
+      db.collection("asistencias").add({
+        nombre, matricula, codigo, fecha, hora,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(() => {
+        mensaje.textContent = "¡Asistencia registrada con éxito!";
+        document.getElementById("nombre").value = "";
+        document.getElementById("matricula").value = "";
+        document.getElementById("codigoClase").value = "";
+      });
+    }
+
+    function cargarAsistencias() {
+      const filtroCodigo = document.getElementById("filtroCodigo").value.trim().toLowerCase();
+      const filtroFecha = document.getElementById("filtroFecha").value;
+      const tabla = document.getElementById("registros");
+      db.collection("asistencias").orderBy("timestamp", "desc").onSnapshot(snapshot => {
+        tabla.innerHTML = "";
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const fechaValida = !filtroFecha || data.fecha === new Date(filtroFecha).toLocaleDateString("es-MX");
+          const codigoValido = !filtroCodigo || data.codigo.toLowerCase().includes(filtroCodigo);
+          if (fechaValida && codigoValido) {
+            const fila = `<tr>
+              <td>${data.nombre}</td>
+              <td>${data.matricula}</td>
+              <td>${data.codigo}</td>
+              <td>${data.fecha}</td>
+              <td>${data.hora}</td>
+            </tr>`;
+            tabla.innerHTML += fila;
+          }
+        });
+      });
+    }
+
+    function exportarExcel() {
+      const tabla = document.getElementById("tabla");
+      const wb = XLSX.utils.table_to_book(tabla, { sheet: "Asistencias" });
+      XLSX.writeFile(wb, "asistencias.xlsx");
+    }
+
+    cargarAsistencias();
+  </script>
+</body>
+</html>
